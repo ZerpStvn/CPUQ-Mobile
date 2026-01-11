@@ -1,5 +1,6 @@
 import 'package:cpuq/models/announcement.dart';
 import 'package:cpuq/models/service_item.dart';
+import 'package:cpuq/services/permission_service.dart';
 import 'package:cpuq/utils/global_theme.dart';
 import 'package:cpuq/view/alerts_page.dart';
 import 'package:cpuq/view/check_queue_page.dart';
@@ -31,71 +32,55 @@ class _HomePageState extends State<HomePage> {
       const AlertsPage(),
       const ProfilePage(),
     ];
+
+    // Check and request permissions after widget is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPermissions();
+    });
+  }
+
+  Future<void> _checkPermissions() async {
+    await PermissionService.checkAndRequestPermissions(context);
   }
 
   List<ServiceItem> get _services => [
-        ServiceItem(
-          title: 'My Classes',
-          icon: FontAwesomeIcons.bookOpen,
-          iconColor: primaryColor,
-        ),
-        ServiceItem(
-          title: 'Schedule',
-          icon: FontAwesomeIcons.calendar,
-          iconColor: primaryColor,
-        ),
-        ServiceItem(
-          title: 'Grades',
-          icon: FontAwesomeIcons.chartLine,
-          iconColor: primaryColor,
-        ),
-        ServiceItem(
-          title: 'Check My Queue',
-          icon: FontAwesomeIcons.ticket,
-          iconColor: primaryColor,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const CheckQueuePage(),
-              ),
-            );
-          },
-        ),
-        ServiceItem(
-          title: 'Queue Display',
-          icon: FontAwesomeIcons.listOl,
-          iconColor: primaryColor,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const QueueDisplayPage(),
-              ),
-            );
-          },
-        ),
-        ServiceItem(
-          title: 'Advising',
-          icon: FontAwesomeIcons.userTie,
-          iconColor: primaryColor,
-        ),
-        ServiceItem(
-          title: 'Register',
-          icon: FontAwesomeIcons.fileLines,
-          iconColor: primaryColor,
-        ),
-        ServiceItem(
-          title: 'PoolPass',
-          icon: FontAwesomeIcons.ticket,
-          iconColor: primaryColor,
-        ),
-        ServiceItem(
-          title: 'Campus Map',
-          icon: FontAwesomeIcons.mapLocationDot,
-          iconColor: primaryColor,
-        ),
-      ];
+    ServiceItem(
+      title: 'My Classes',
+      icon: FontAwesomeIcons.bookOpen,
+      iconColor: primaryColor,
+    ),
+    ServiceItem(
+      title: 'Schedule',
+      icon: FontAwesomeIcons.calendar,
+      iconColor: primaryColor,
+    ),
+    ServiceItem(
+      title: 'Grades',
+      icon: FontAwesomeIcons.chartLine,
+      iconColor: primaryColor,
+    ),
+
+    ServiceItem(
+      title: 'Advising',
+      icon: FontAwesomeIcons.userTie,
+      iconColor: primaryColor,
+    ),
+    ServiceItem(
+      title: 'Register',
+      icon: FontAwesomeIcons.fileLines,
+      iconColor: primaryColor,
+    ),
+    ServiceItem(
+      title: 'PoolPass',
+      icon: FontAwesomeIcons.ticket,
+      iconColor: primaryColor,
+    ),
+    ServiceItem(
+      title: 'Campus Map',
+      icon: FontAwesomeIcons.mapLocationDot,
+      iconColor: primaryColor,
+    ),
+  ];
 
   final List<Announcement> _announcements = [
     Announcement(
@@ -303,10 +288,7 @@ class HomeContent extends StatelessWidget {
                   ],
                 ),
                 padding: const EdgeInsets.all(10),
-                child: Image.asset(
-                  'assets/png/cpu_logo.png',
-                  fit: BoxFit.contain,
-                ),
+                child: Image.asset('assets/icon/icon.png', fit: BoxFit.contain),
               ),
             ],
           ),
