@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:cpuq/models/queue/department.dart';
 import 'package:cpuq/models/queue/queue_ticket.dart';
 import 'package:cpuq/providers/queue_providers.dart';
+import 'package:cpuq/services/notification_service.dart';
 import 'package:cpuq/services/saved_ticket_service.dart';
 import 'package:cpuq/utils/global_theme.dart';
 import 'package:flutter/material.dart';
@@ -19,16 +21,82 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
   String? _savedTicketNumber;
   QueueTicket? _myTicket;
 
+  // Notification tracking
+  String? _lastNotifiedStatus;
+  int? _lastNotifiedPosition;
+  Timer? _ticketWatchTimer;
+
   @override
   void initState() {
     super.initState();
     _loadSavedTicket();
+    _startTicketWatcher();
   }
 
   @override
   void dispose() {
     _ticketInputController.dispose();
+    _ticketWatchTimer?.cancel();
     super.dispose();
+  }
+
+  void _startTicketWatcher() {
+    // Watch for ticket status changes every 5 seconds
+    _ticketWatchTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (_savedTicketNumber != null) {
+        _checkTicketStatusForNotification();
+      }
+    });
+  }
+
+  Future<void> _checkTicketStatusForNotification() async {
+    if (_savedTicketNumber == null) return;
+
+    final repository = ref.read(queueRepositoryProvider);
+
+    try {
+      // Check if ticket is being served
+      final servingTickets = await repository.streamServingTickets(departmentId: null).first;
+      final servingTicket = servingTickets.where((t) => t.ticketNumber == _savedTicketNumber).firstOrNull;
+
+      if (servingTicket != null) {
+        // Ticket is now being served!
+        if (_lastNotifiedStatus != 'serving') {
+          _lastNotifiedStatus = 'serving';
+          await NotificationService().showNowServingNotification(
+            ticketNumber: _savedTicketNumber!,
+            windowName: servingTicket.windowName ?? 'Counter',
+          );
+        }
+        return;
+      }
+
+      // Check position in waiting queue
+      final waitingTickets = await repository.streamWaitingTickets(departmentId: null).first;
+      final position = waitingTickets.indexWhere((t) => t.ticketNumber == _savedTicketNumber);
+
+      if (position != -1) {
+        final queuePosition = position + 1; // 1-based position
+
+        // Notify if position is 1 (next in line) and we haven't notified yet
+        if (queuePosition == 1 && _lastNotifiedPosition != 1) {
+          _lastNotifiedPosition = 1;
+          await NotificationService().showNextInLineNotification(
+            ticketNumber: _savedTicketNumber!,
+          );
+        }
+        // Notify for positions 2-3 if we haven't notified for those
+        else if (queuePosition <= 3 && _lastNotifiedPosition != queuePosition) {
+          _lastNotifiedPosition = queuePosition;
+          await NotificationService().showPositionUpdateNotification(
+            ticketNumber: _savedTicketNumber!,
+            position: queuePosition,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking ticket status: $e');
+    }
   }
 
   Future<void> _loadSavedTicket() async {
@@ -56,12 +124,21 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
     setState(() {
       _savedTicketNumber = ticketNumber;
       _ticketInputController.clear();
+      // Reset notification tracking for new ticket
+      _lastNotifiedStatus = null;
+      _lastNotifiedPosition = null;
     });
     _findMyTicket(ticketNumber);
 
+    // Immediately check for notifications
+    _checkTicketStatusForNotification();
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ticket $ticketNumber saved')),
+        SnackBar(
+          content: Text('Ticket $ticketNumber saved. You\'ll be notified when it\'s your turn!'),
+          backgroundColor: primaryColor,
+        ),
       );
     }
   }
@@ -86,9 +163,12 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
 
   Future<void> _clearSavedTicket() async {
     await SavedTicketService.clearSavedTicket();
+    await NotificationService().cancelAll();
     setState(() {
       _savedTicketNumber = null;
       _myTicket = null;
+      _lastNotifiedStatus = null;
+      _lastNotifiedPosition = null;
     });
   }
 
