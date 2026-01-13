@@ -99,9 +99,9 @@ class _CheckQueuePageState extends ConsumerState<CheckQueuePage> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: primaryColor.withOpacity(0.1),
+                color: primaryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: primaryColor.withOpacity(0.3)),
+                border: Border.all(color: primaryColor.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -169,11 +169,11 @@ class _CheckQueuePageState extends ConsumerState<CheckQueuePage> {
                       fillColor: neutralWhite,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: textGray.withOpacity(0.3)),
+                        borderSide: BorderSide(color: textGray.withValues(alpha: 0.3)),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: textGray.withOpacity(0.3)),
+                        borderSide: BorderSide(color: textGray.withValues(alpha: 0.3)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -255,7 +255,7 @@ class _CheckQueuePageState extends ConsumerState<CheckQueuePage> {
         decoration: BoxDecoration(
           color: neutralWhite,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.red.withOpacity(0.3)),
+          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
         ),
         child: Column(
           children: [
@@ -295,7 +295,7 @@ class _CheckQueuePageState extends ConsumerState<CheckQueuePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: isServing ? primaryColor.withOpacity(0.3) : Colors.black.withOpacity(0.05),
+            color: isServing ? primaryColor.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -337,7 +337,7 @@ class _CheckQueuePageState extends ConsumerState<CheckQueuePage> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isServing ? neutralWhite.withOpacity(0.2) : backgroundGray,
+              color: isServing ? neutralWhite.withValues(alpha: 0.2) : backgroundGray,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -420,7 +420,7 @@ class _CheckQueuePageState extends ConsumerState<CheckQueuePage> {
         FaIcon(
           icon,
           size: 16,
-          color: isServing ? neutralWhite.withOpacity(0.8) : textGray,
+          color: isServing ? neutralWhite.withValues(alpha: 0.8) : textGray,
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -431,7 +431,7 @@ class _CheckQueuePageState extends ConsumerState<CheckQueuePage> {
                 label,
                 style: TextStyle(
                   fontSize: 12,
-                  color: isServing ? neutralWhite.withOpacity(0.7) : textGray,
+                  color: isServing ? neutralWhite.withValues(alpha: 0.7) : textGray,
                 ),
               ),
               const SizedBox(height: 2),

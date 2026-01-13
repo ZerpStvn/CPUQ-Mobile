@@ -33,6 +33,3 @@ final departmentsProvider = FutureProvider<List<Department>>((ref) {
   final repository = ref.watch(queueRepositoryProvider);
   return repository.getDepartments();
 });
-
-// State provider for selected department filter
-final selectedDepartmentProvider = StateProvider<String?>((ref) => null);

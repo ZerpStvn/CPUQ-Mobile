@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:cpuq/models/queue/department.dart';
 import 'package:cpuq/models/queue/queue_ticket.dart';
 import 'package:cpuq/providers/queue_providers.dart';
 import 'package:cpuq/services/notification_service.dart';
@@ -466,9 +465,6 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
 
   @override
   Widget build(BuildContext context) {
-    final selectedDepartmentId = ref.watch(selectedDepartmentProvider);
-    final departmentsAsync = ref.watch(departmentsStreamProvider);
-
     return Scaffold(
       backgroundColor: backgroundGray,
       appBar: AppBar(
@@ -485,37 +481,15 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
         ),
         centerTitle: true,
         iconTheme: const IconThemeData(color: neutralWhite),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(24),
+          ),
+        ),
       ),
       body: Column(
         children: [
-          // Department Filter
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: primaryColor,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-              ),
-            ),
-            child: departmentsAsync.when(
-              data: (departments) => _buildDepartmentFilter(
-                context,
-                ref,
-                departments,
-                selectedDepartmentId,
-              ),
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: neutralWhite),
-              ),
-              error: (error, stack) => Text(
-                'Error loading departments',
-                style: TextStyle(color: neutralWhite),
-              ),
-            ),
-          ),
-
           // My Ticket Section
           if (_savedTicketNumber != null)
             _buildMyTicketCard()
@@ -524,86 +498,9 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
 
           // Queue Display
           Expanded(
-            child: _buildQueueDisplay(context, ref, selectedDepartmentId),
+            child: _buildQueueDisplay(context, ref),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildDepartmentFilter(
-    BuildContext context,
-    WidgetRef ref,
-    List<Department> departments,
-    String? selectedDepartmentId,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Filter by Department',
-          style: TextStyle(
-            color: neutralWhite,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            // All Departments chip
-            _buildDepartmentChip(
-              context,
-              ref,
-              'All',
-              null,
-              selectedDepartmentId == null,
-            ),
-            // Individual department chips
-            ...departments.map((dept) => _buildDepartmentChip(
-                  context,
-                  ref,
-                  dept.name,
-                  dept.id,
-                  selectedDepartmentId == dept.id,
-                )),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDepartmentChip(
-    BuildContext context,
-    WidgetRef ref,
-    String label,
-    String? departmentId,
-    bool isSelected,
-  ) {
-    return GestureDetector(
-      onTap: () {
-        ref.read(selectedDepartmentProvider.notifier).state = departmentId;
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? secondaryColor : neutralWhite.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? secondaryColor : neutralWhite.withOpacity(0.3),
-            width: 1.5,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? textDark : neutralWhite,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-            fontSize: 14,
-          ),
-        ),
       ),
     );
   }
@@ -611,8 +508,8 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
   Widget _buildQueueDisplay(
     BuildContext context,
     WidgetRef ref,
-    String? departmentId,
   ) {
+    final departmentId = _myTicket?.departmentId;
     final servingTicketsAsync =
         ref.watch(servingTicketsStreamProvider(departmentId));
     final waitingTicketsAsync =
@@ -646,7 +543,7 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
               error: (error, stack) => _buildErrorState(error.toString()),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
 
             // Waiting Queue Section
             Text(
@@ -670,167 +567,114 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
     );
   }
 
-  Widget _buildServingTickets(BuildContext context, List tickets) {
-    return Column(
-      children: tickets.map((ticket) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [primaryColor, Color(0xFF05236D)],
-            ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: primaryColor.withOpacity(0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
+  Widget _buildServingTickets(BuildContext context, List<QueueTicket> tickets) {
+    // Arrange order by called_at desc
+    final sortedTickets = [...tickets];
+    sortedTickets.sort((a, b) {
+      if (a.calledAt == null && b.calledAt == null) return 0;
+      if (a.calledAt == null) return 1;
+      if (b.calledAt == null) return -1;
+      return b.calledAt!.compareTo(a.calledAt!);
+    });
+
+    return Container(
+      decoration: BoxDecoration(
+        color: neutralWhite,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Ticket Number Badge
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: secondaryColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      ticket.ticketNumber,
-                      style: const TextStyle(
-                        color: textDark,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: neutralWhite.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'NOW SERVING',
-                      style: TextStyle(
-                        color: secondaryColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
-                ],
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header Row
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+            decoration: const BoxDecoration(
+              color: primaryColor,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
               ),
-              const SizedBox(height: 20),
-
-              // Window Name
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: secondaryColor.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const FaIcon(
-                      FontAwesomeIcons.computer,
-                      size: 20,
-                      color: secondaryColor,
+            ),
+            child: Row(
+              children: const [
+                Expanded(
+                  flex: 1,
+                  child: Text(
+                    'WINDOW',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                      letterSpacing: 1.2,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Proceed to',
-                          style: TextStyle(
-                            color: neutralWhite.withOpacity(0.7),
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          ticket.windowName ?? 'Counter',
-                          style: const TextStyle(
-                            color: neutralWhite,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
+                ),
+                Expanded(
+                  flex: 1,
+                  child: Text(
+                    'TICKET',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                      letterSpacing: 1.2,
                     ),
-                  ),
-                ],
-              ),
-
-              // Student Info (if available)
-              if (ticket.studentName != null || ticket.studentId != null) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: neutralWhite.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      FaIcon(
-                        FontAwesomeIcons.user,
-                        size: 14,
-                        color: neutralWhite.withOpacity(0.7),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (ticket.studentName != null)
-                              Text(
-                                ticket.studentName!,
-                                style: const TextStyle(
-                                  color: neutralWhite,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            if (ticket.studentId != null)
-                              Text(
-                                'ID: ${ticket.studentId}',
-                                style: TextStyle(
-                                  color: neutralWhite.withOpacity(0.7),
-                                  fontSize: 12,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
                   ),
                 ),
               ],
-            ],
+            ),
           ),
-        );
-      }).toList(),
+          // Data Rows
+          ...sortedTickets.map((ticket) {
+            final isLast = sortedTickets.indexOf(ticket) == sortedTickets.length - 1;
+            return Container(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+              decoration: BoxDecoration(
+                border: isLast
+                    ? null
+                    : Border(
+                        bottom: BorderSide(
+                          color: backgroundGray,
+                          width: 1,
+                        ),
+                      ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Text(
+                      ticket.windowName ?? 'Counter',
+                      style: const TextStyle(
+                        color: textDark,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 1,
+                    child: Text(
+                      ticket.ticketNumber,
+                      style: const TextStyle(
+                        color: primaryColor,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
     );
   }
 
@@ -1006,7 +850,6 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
               style: TextStyle(
                 color: textGray,
                 fontSize: 16,
-                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 8),
@@ -1025,56 +868,33 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
   }
 
   Widget _buildServingSkeletonLoader() {
-    return Column(
-      children: List.generate(2, (index) => _buildServingSkeleton()),
-    );
-  }
-
-  Widget _buildServingSkeleton() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: neutralWhite,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
+      child: Column(
         children: [
-          // Skeleton Ticket Number
           Container(
-            width: 80,
-            height: 80,
+            height: 40,
             decoration: BoxDecoration(
               color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
             ),
           ),
-          const SizedBox(width: 16),
-          // Skeleton Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ...List.generate(2, (index) => Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(
               children: [
-                Container(
-                  height: 24,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  height: 16,
-                  width: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
+                Expanded(child: Container(height: 20, color: Colors.grey[200])),
+                const SizedBox(width: 20),
+                Expanded(child: Container(height: 20, color: Colors.grey[200])),
               ],
             ),
-          ),
+          )),
         ],
       ),
     );

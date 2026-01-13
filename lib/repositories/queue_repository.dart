@@ -7,17 +7,29 @@ class QueueRepository {
 
   // Stream serving tickets for a specific department or all departments
   Stream<List<QueueTicket>> streamServingTickets({String? departmentId}) async* {
+    // We stream tickets with a broader filter and sort descending by called_at
+    // Using descending here to keep the most recently called tickets at the top
     await for (final data in _supabase
         .from('queue_tickets')
         .stream(primaryKey: ['id'])
-        .eq('status', 'serving')
-        .order('called_at', ascending: true)) {
+        .order('called_at', ascending: false)) {
       try {
+        // Filter locally for 'serving' status to ensure real-time removal
+        // when status transitions to 'completed' or 'waiting'
+        var servingData = data.where((json) => json['status'] == 'serving').toList();
+
+        // Further filter by department if departmentId is provided
+        if (departmentId != null) {
+          servingData = servingData.where((json) => json['department_id'] == departmentId).toList();
+        }
+
         var tickets = <QueueTicket>[];
 
-        for (var json in data) {
+        for (var json in servingData) {
           try {
             // Fetch window name if window_id exists
+            // Optimization: In a production app, window names should be cached or joined
+            // but since .stream() doesn't support joins, we fetch it here.
             if (json['window_id'] != null) {
               final windowData = await _supabase
                   .from('windows')
@@ -33,20 +45,14 @@ class QueueRepository {
             tickets.add(QueueTicket.fromJson(json));
           } catch (e) {
             print('Error parsing ticket: $e');
-            print('JSON: $json');
-            rethrow;
+            continue; // Skip failed tickets instead of breaking the stream
           }
-        }
-
-        // Filter by department if departmentId is provided
-        if (departmentId != null) {
-          tickets = tickets.where((ticket) => ticket.departmentId == departmentId).toList();
         }
 
         yield tickets;
       } catch (e) {
         print('Error in streamServingTickets: $e');
-        rethrow;
+        // Don't rethrow to keep the stream alive
       }
     }
   }
@@ -63,7 +69,7 @@ class QueueRepository {
 
         for (var json in data) {
           try {
-            // Fetch window name if window_id exists
+            // Fetch window name if window_id exists (usually null for waiting)
             if (json['window_id'] != null) {
               final windowData = await _supabase
                   .from('windows')
@@ -79,8 +85,7 @@ class QueueRepository {
             tickets.add(QueueTicket.fromJson(json));
           } catch (e) {
             print('Error parsing ticket: $e');
-            print('JSON: $json');
-            rethrow;
+            continue;
           }
         }
 
@@ -92,7 +97,6 @@ class QueueRepository {
         yield tickets;
       } catch (e) {
         print('Error in streamWaitingTickets: $e');
-        rethrow;
       }
     }
   }
