@@ -7,6 +7,21 @@ import 'package:cpuq/utils/global_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:flutter/services.dart';
+
+// Added to format the text enter to all caps January 14, 2025
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return newValue.copyWith(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+    );
+  }
+}
 
 class QueueDisplayPage extends ConsumerStatefulWidget {
   const QueueDisplayPage({super.key});
@@ -18,84 +33,21 @@ class QueueDisplayPage extends ConsumerStatefulWidget {
 class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
   final _ticketInputController = TextEditingController();
   String? _savedTicketNumber;
-  QueueTicket? _myTicket;
 
-  // Notification tracking
+  // Notification tracking (local state to avoid repeating notifications)
   String? _lastNotifiedStatus;
   int? _lastNotifiedPosition;
-  Timer? _ticketWatchTimer;
 
   @override
   void initState() {
     super.initState();
     _loadSavedTicket();
-    _startTicketWatcher();
   }
 
   @override
   void dispose() {
     _ticketInputController.dispose();
-    _ticketWatchTimer?.cancel();
     super.dispose();
-  }
-
-  void _startTicketWatcher() {
-    // Watch for ticket status changes every 5 seconds
-    _ticketWatchTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (_savedTicketNumber != null) {
-        _checkTicketStatusForNotification();
-      }
-    });
-  }
-
-  Future<void> _checkTicketStatusForNotification() async {
-    if (_savedTicketNumber == null) return;
-
-    final repository = ref.read(queueRepositoryProvider);
-
-    try {
-      // Check if ticket is being served
-      final servingTickets = await repository.streamServingTickets(departmentId: null).first;
-      final servingTicket = servingTickets.where((t) => t.ticketNumber == _savedTicketNumber).firstOrNull;
-
-      if (servingTicket != null) {
-        // Ticket is now being served!
-        if (_lastNotifiedStatus != 'serving') {
-          _lastNotifiedStatus = 'serving';
-          await NotificationService().showNowServingNotification(
-            ticketNumber: _savedTicketNumber!,
-            windowName: servingTicket.windowName ?? 'Counter',
-          );
-        }
-        return;
-      }
-
-      // Check position in waiting queue
-      final waitingTickets = await repository.streamWaitingTickets(departmentId: null).first;
-      final position = waitingTickets.indexWhere((t) => t.ticketNumber == _savedTicketNumber);
-
-      if (position != -1) {
-        final queuePosition = position + 1; // 1-based position
-
-        // Notify if position is 1 (next in line) and we haven't notified yet
-        if (queuePosition == 1 && _lastNotifiedPosition != 1) {
-          _lastNotifiedPosition = 1;
-          await NotificationService().showNextInLineNotification(
-            ticketNumber: _savedTicketNumber!,
-          );
-        }
-        // Notify for positions 2-3 if we haven't notified for those
-        else if (queuePosition <= 3 && _lastNotifiedPosition != queuePosition) {
-          _lastNotifiedPosition = queuePosition;
-          await NotificationService().showPositionUpdateNotification(
-            ticketNumber: _savedTicketNumber!,
-            position: queuePosition,
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('Error checking ticket status: $e');
-    }
   }
 
   Future<void> _loadSavedTicket() async {
@@ -104,9 +56,6 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
       setState(() {
         _savedTicketNumber = savedTicket;
       });
-      if (savedTicket != null) {
-        _findMyTicket(savedTicket);
-      }
     }
   }
 
@@ -127,10 +76,6 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
       _lastNotifiedStatus = null;
       _lastNotifiedPosition = null;
     });
-    _findMyTicket(ticketNumber);
-
-    // Immediately check for notifications
-    _checkTicketStatusForNotification();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -142,33 +87,50 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
     }
   }
 
-  Future<void> _findMyTicket(String ticketNumber) async {
-    final repository = ref.read(queueRepositoryProvider);
-    final servingStream = repository.streamServingTickets(departmentId: null);
-    final waitingStream = repository.streamWaitingTickets(departmentId: null);
-
-    final servingTickets = await servingStream.first;
-    final waitingTickets = await waitingStream.first;
-
-    final allTickets = [...servingTickets, ...waitingTickets];
-    final ticket = allTickets.where((t) => t.ticketNumber == ticketNumber).firstOrNull;
-
-    if (mounted) {
-      setState(() {
-        _myTicket = ticket;
-      });
-    }
-  }
-
   Future<void> _clearSavedTicket() async {
     await SavedTicketService.clearSavedTicket();
     await NotificationService().cancelAll();
     setState(() {
       _savedTicketNumber = null;
-      _myTicket = null;
       _lastNotifiedStatus = null;
       _lastNotifiedPosition = null;
     });
+  }
+
+  // Handle notifications based on real-time ticket info
+  void _handleNotifications(TrackedTicketInfo info) {
+    if (_savedTicketNumber == null || info.ticket == null) return;
+
+    final ticket = info.ticket!;
+    final position = info.position;
+
+    // Check serving status
+    if (ticket.status == 'serving') {
+      if (_lastNotifiedStatus != 'serving') {
+        _lastNotifiedStatus = 'serving';
+        NotificationService().showNowServingNotification(
+          ticketNumber: ticket.ticketNumber,
+          windowName: ticket.windowName ?? 'Counter',
+        );
+      }
+      return;
+    }
+
+    // Check waiting position
+    if (position != null) {
+      if (position == 1 && _lastNotifiedPosition != 1) {
+        _lastNotifiedPosition = 1;
+        NotificationService().showNextInLineNotification(
+          ticketNumber: ticket.ticketNumber,
+        );
+      } else if (position > 1 && position <= 3 && _lastNotifiedPosition != position) {
+        _lastNotifiedPosition = position;
+        NotificationService().showPositionUpdateNotification(
+          ticketNumber: ticket.ticketNumber,
+          position: position,
+        );
+      }
+    }
   }
 
   Widget _buildMyTicketInput() {
@@ -178,10 +140,10 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
       decoration: BoxDecoration(
         color: neutralWhite,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: primaryColor.withOpacity(0.2)),
+        border: Border.all(color: primaryColor.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withOpacity(0.1),
+            color: primaryColor.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -195,7 +157,7 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: primaryColor.withOpacity(0.1),
+                  color: primaryColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const FaIcon(
@@ -222,11 +184,12 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
                 child: TextField(
                   controller: _ticketInputController,
                   textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [UpperCaseTextFormatter()],
                   decoration: InputDecoration(
                     hintText: 'Enter ticket number (e.g., BUSS-004)',
                     hintStyle: TextStyle(
                       fontSize: 12,
-                      color: textGray.withOpacity(0.6),
+                      color: textGray.withValues(alpha: 0.6),
                     ),
                     filled: true,
                     fillColor: backgroundGray,
@@ -272,61 +235,8 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
     );
   }
 
-  Widget _buildMyTicketCard() {
-    if (_myTicket == null) {
-      return Container(
-        margin: const EdgeInsets.all(16),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: neutralWhite,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.orange.withOpacity(0.3)),
-        ),
-        child: Row(
-          children: [
-            const FaIcon(
-              FontAwesomeIcons.circleExclamation,
-              color: Colors.orange,
-              size: 24,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Ticket Not Found',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Ticket $_savedTicketNumber may have been completed',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: textGray,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
-              onPressed: _clearSavedTicket,
-              icon: const FaIcon(
-                FontAwesomeIcons.xmark,
-                size: 16,
-                color: textGray,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final isServing = _myTicket!.status == 'serving';
+  Widget _buildMyTicketCard(QueueTicket ticket, int? position) {
+    final isServing = ticket.status == 'serving';
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -342,7 +252,7 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: (isServing ? primaryColor : secondaryColor).withOpacity(0.3),
+            color: (isServing ? primaryColor : secondaryColor).withValues(alpha: 0.3),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -362,14 +272,14 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
                     style: TextStyle(
                       fontSize: 12,
                       color: isServing
-                          ? neutralWhite.withOpacity(0.8)
-                          : textDark.withOpacity(0.7),
+                          ? neutralWhite.withValues(alpha: 0.8)
+                          : textDark.withValues(alpha: 0.7),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _myTicket!.ticketNumber,
+                    ticket.ticketNumber,
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w800,
@@ -390,7 +300,7 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
                     decoration: BoxDecoration(
                       color: isServing
                           ? secondaryColor
-                          : neutralWhite.withOpacity(0.3),
+                          : neutralWhite.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -410,20 +320,20 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
                       FontAwesomeIcons.xmark,
                       size: 16,
                       color: isServing
-                          ? neutralWhite.withOpacity(0.7)
-                          : textDark.withOpacity(0.7),
+                          ? neutralWhite.withValues(alpha: 0.7)
+                          : textDark.withValues(alpha: 0.7),
                     ),
                   ),
                 ],
               ),
             ],
           ),
-          if (isServing && _myTicket!.windowName != null) ...[
+          if (isServing && ticket.windowName != null) ...[
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: secondaryColor.withOpacity(0.2),
+                color: secondaryColor.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -440,12 +350,12 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
                       Text(
                         'Proceed to',
                         style: TextStyle(
-                          color: neutralWhite.withOpacity(0.8),
+                          color: neutralWhite.withValues(alpha: 0.8),
                           fontSize: 11,
                         ),
                       ),
                       Text(
-                        _myTicket!.windowName!,
+                        ticket.windowName!,
                         style: const TextStyle(
                           color: neutralWhite,
                           fontSize: 18,
@@ -457,7 +367,62 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
                 ],
               ),
             ),
+          ] else if (!isServing && position != null) ...[
+            const SizedBox(height: 12),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTicketNotFoundCard() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: neutralWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const FaIcon(
+            FontAwesomeIcons.circleExclamation,
+            color: Colors.orange,
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Ticket Not Found',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: textDark,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Ticket $_savedTicketNumber may have been completed',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textGray,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _clearSavedTicket,
+            icon: const FaIcon(
+              FontAwesomeIcons.xmark,
+              size: 16,
+              color: textGray,
+            ),
+          ),
         ],
       ),
     );
@@ -490,15 +455,37 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
       ),
       body: Column(
         children: [
-          // My Ticket Section
+          // My Ticket Section (Real-time)
           if (_savedTicketNumber != null)
-            _buildMyTicketCard()
+            Consumer(
+              builder: (context, ref, child) {
+                final info = ref.watch(myTrackedTicketProvider(_savedTicketNumber!));
+                
+                // Trigger notifications here based on state changes
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _handleNotifications(info);
+                });
+
+                if (info.ticket != null) {
+                  return _buildMyTicketCard(info.ticket!, info.position);
+                }
+                return _buildTicketNotFoundCard();
+              },
+            )
           else
             _buildMyTicketInput(),
 
           // Queue Display
           Expanded(
-            child: _buildQueueDisplay(context, ref),
+            child: Consumer(
+              builder: (context, ref, child) {
+                String? deptId;
+                if (_savedTicketNumber != null) {
+                  deptId = ref.watch(myTrackedTicketProvider(_savedTicketNumber!)).ticket?.departmentId;
+                }
+                return _buildQueueDisplay(context, ref, deptId);
+              },
+            ),
           ),
         ],
       ),
@@ -508,8 +495,8 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
   Widget _buildQueueDisplay(
     BuildContext context,
     WidgetRef ref,
+    String? departmentId,
   ) {
-    final departmentId = _myTicket?.departmentId;
     final servingTicketsAsync =
         ref.watch(servingTicketsStreamProvider(departmentId));
     final waitingTicketsAsync =
@@ -583,7 +570,7 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withOpacity(0.1),
+            color: primaryColor.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -664,7 +651,7 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
                       ticket.ticketNumber,
                       style: const TextStyle(
                         color: primaryColor,
-                        fontSize: 22,
+                        fontSize: 18,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -679,124 +666,61 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
   }
 
   Widget _buildWaitingTickets(BuildContext context, List tickets) {
-    // Show only the next 6 tickets
-    final displayTickets = tickets.take(6).toList();
+    // Show only the next 10 tickets
+    final displayTickets = tickets.take(5).toList();
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 1.8,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+    return Container(
+      decoration: BoxDecoration(
+        color: neutralWhite,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      itemCount: displayTickets.length,
-      itemBuilder: (context, index) {
-        final ticket = displayTickets[index];
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                neutralWhite,
-                neutralWhite.withOpacity(0.95),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: primaryColor.withOpacity(0.2),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: primaryColor.withOpacity(0.1),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      ticket.ticketNumber,
-                      style: const TextStyle(
-                        color: primaryColor,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: secondaryColor.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '${index + 1}',
-                      style: const TextStyle(
-                        color: primaryColor,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (ticket.studentName != null)
-                Row(
-                  children: [
-                    FaIcon(
-                      FontAwesomeIcons.user,
-                      size: 10,
-                      color: textGray.withOpacity(0.7),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        ticket.studentName!,
-                        style: const TextStyle(
-                          color: textDark,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: displayTickets.length,
+        separatorBuilder: (context, index) => Divider(
+          color: backgroundGray,
+          height: 1,
+          indent: 20,
+          endIndent: 20,
+        ),
+        itemBuilder: (context, index) {
+          final ticket = displayTickets[index];
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            leading: CircleAvatar(
+              backgroundColor: primaryColor.withValues(alpha: 0.1),
+              child: Text(
+                '${index + 1}',
+                style: const TextStyle(
+                  color: primaryColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
                 ),
-              if (ticket.studentId != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  ticket.studentId!,
-                  style: TextStyle(
-                    color: textGray,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ],
-          ),
-        );
-      },
+              ),
+            ),
+            title: Text(
+              ticket.ticketNumber,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: textDark,
+              ),
+            ),
+            subtitle: ticket.studentName != null 
+              ? Text(ticket.studentName!, style: const TextStyle(color: textGray, fontSize: 13)) 
+              : null,
+            trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 16),
+          );
+        },
+      ),
     );
   }
 
@@ -813,7 +737,7 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
             FaIcon(
               FontAwesomeIcons.clockRotateLeft,
               size: 48,
-              color: textGray.withOpacity(0.5),
+              color: textGray.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
@@ -901,48 +825,22 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
   }
 
   Widget _buildWaitingSkeletonLoader() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 1.8,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+    return Container(
+      decoration: BoxDecoration(
+        color: neutralWhite,
+        borderRadius: BorderRadius.circular(16),
       ),
-      itemCount: 4,
-      itemBuilder: (context, index) {
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: neutralWhite,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                height: 24,
-                width: 100,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                height: 14,
-                width: 80,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 5,
+        separatorBuilder: (context, index) => Divider(color: backgroundGray, height: 1),
+        itemBuilder: (context, index) => ListTile(
+          leading: CircleAvatar(backgroundColor: Colors.grey[200]),
+          title: Container(height: 16, width: 80, color: Colors.grey[200]),
+          subtitle: Container(height: 12, width: 120, color: Colors.grey[100]),
+        ),
+      ),
     );
   }
 }

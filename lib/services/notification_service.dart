@@ -1,5 +1,6 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
+import 'dart:io';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -11,20 +12,22 @@ class NotificationService {
 
   bool _isInitialized = false;
 
-  // Use your custom launcher icon
   static const String _notificationIcon = '@mipmap/launcher_icon';
+
+  // Using a completely different channel key to ensure a fresh start on the device
+  static const String _channelId = 'cpu_queue_urgent_v50';
+  static const String _channelName = 'Queue Alerts';
+  static const String _channelDesc = 'Urgent notifications for queue updates';
 
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    // Android settings - use your custom icon
     const androidSettings = AndroidInitializationSettings(_notificationIcon);
-
-    // iOS settings
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
+      requestCriticalPermission: true,
     );
 
     const initSettings = InitializationSettings(
@@ -34,74 +37,80 @@ class NotificationService {
 
     await _notifications.initialize(
       initSettings,
-      onDidReceiveNotificationResponse: _onNotificationTapped,
+      onDidReceiveNotificationResponse: (response) {
+        debugPrint('Notification tapped: ${response.payload}');
+      },
     );
+
+    if (Platform.isAndroid) {
+      final androidPlugin = _notifications.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      
+      await androidPlugin?.requestNotificationsPermission();
+
+      // Create high importance channel with all features enabled
+      await androidPlugin?.createNotificationChannel(const AndroidNotificationChannel(
+        _channelId,
+        _channelName,
+        description: _channelDesc,
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        enableLights: true,
+        showBadge: true,
+      ));
+    }
 
     _isInitialized = true;
   }
 
-  void _onNotificationTapped(NotificationResponse response) {
-    // Handle notification tap - can navigate to queue display page
-    debugPrint('Notification tapped: ${response.payload}');
-  }
-
-  // Notification channel for queue updates
-  static const _queueChannelId = 'queue_notifications';
-  static const _queueChannelName = 'Queue Updates';
-  static const _queueChannelDescription = 'Notifications for queue status updates';
-
-  // Show notification when user is next in line
   Future<void> showNextInLineNotification({
     required String ticketNumber,
   }) async {
     const androidDetails = AndroidNotificationDetails(
-      _queueChannelId,
-      _queueChannelName,
-      channelDescription: _queueChannelDescription,
-      importance: Importance.high,
-      priority: Priority.high,
+      _channelId,
+      _channelName,
+      channelDescription: _channelDesc,
+      importance: Importance.max,
+      priority: Priority.max,
       icon: _notificationIcon,
       color: Color(0xFF03236D),
       enableVibration: true,
       playSound: true,
+      visibility: NotificationVisibility.public,
     );
 
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
-    );
-
-    const details = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
+      interruptionLevel: InterruptionLevel.active,
     );
 
     await _notifications.show(
-      1, // Notification ID
-      'You\'re Next!',
-      'Ticket $ticketNumber - Get ready, you\'re next in line!',
-      details,
+      1,
+      'You\'re in queue',
+      'Ticket $ticketNumber - Please wait',
+      const NotificationDetails(android: androidDetails, iOS: iosDetails),
       payload: 'next_in_line:$ticketNumber',
     );
   }
 
-  // Show notification when user is now being served
   Future<void> showNowServingNotification({
     required String ticketNumber,
     required String windowName,
   }) async {
     const androidDetails = AndroidNotificationDetails(
-      _queueChannelId,
-      _queueChannelName,
-      channelDescription: _queueChannelDescription,
+      _channelId,
+      _channelName,
+      channelDescription: _channelDesc,
       importance: Importance.max,
       priority: Priority.max,
       icon: _notificationIcon,
       color: Color(0xFFFFB800),
       enableVibration: true,
       playSound: true,
-      fullScreenIntent: true,
+      visibility: NotificationVisibility.public,
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -111,35 +120,32 @@ class NotificationService {
       interruptionLevel: InterruptionLevel.timeSensitive,
     );
 
-    const details = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
-    );
-
     await _notifications.show(
-      2, // Notification ID
+      2,
       'Now Serving!',
       'Ticket $ticketNumber - Please proceed to $windowName',
-      details,
+      const NotificationDetails(android: androidDetails, iOS: iosDetails),
       payload: 'now_serving:$ticketNumber',
     );
   }
 
-  // Show notification when position changes
   Future<void> showPositionUpdateNotification({
     required String ticketNumber,
     required int position,
   }) async {
-    if (position > 3) return; // Only notify for top 3 positions
+    if (position > 3) return;
 
     const androidDetails = AndroidNotificationDetails(
-      _queueChannelId,
-      _queueChannelName,
-      channelDescription: _queueChannelDescription,
-      importance: Importance.defaultImportance,
-      priority: Priority.defaultPriority,
+      _channelId,
+      _channelName,
+      channelDescription: _channelDesc,
+      importance: Importance.max,
+      priority: Priority.max,
       icon: _notificationIcon,
       color: Color(0xFF03236D),
+      enableVibration: true,
+      playSound: true,
+      visibility: NotificationVisibility.public,
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -148,36 +154,20 @@ class NotificationService {
       presentSound: true,
     );
 
-    const details = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
-    );
-
-    String message;
-    if (position == 1) {
-      message = 'You\'re next in line! Get ready.';
-    } else if (position == 2) {
-      message = 'Almost there! 2 more before you.';
-    } else {
-      message = 'Getting closer! $position more before you.';
-    }
+    String message = position == 1 
+        ? 'You\'re next in line! Get ready.' 
+        : 'Getting closer! $position more before you.';
 
     await _notifications.show(
-      3, // Notification ID for position updates
+      3,
       'Queue Update',
       'Ticket $ticketNumber - $message',
-      details,
+      const NotificationDetails(android: androidDetails, iOS: iosDetails),
       payload: 'position_update:$ticketNumber',
     );
   }
 
-  // Cancel all notifications
   Future<void> cancelAll() async {
     await _notifications.cancelAll();
-  }
-
-  // Cancel specific notification
-  Future<void> cancel(int id) async {
-    await _notifications.cancel(id);
   }
 }

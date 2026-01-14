@@ -17,6 +17,9 @@ class SupabaseService {
     await Supabase.initialize(
       url: supabaseUrl,
       anonKey: supabaseAnonKey,
+      realtimeClientOptions: const RealtimeClientOptions(
+        eventsPerSecond: 10,
+      ),
     );
 
     _client = Supabase.instance.client;

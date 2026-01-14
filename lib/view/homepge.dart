@@ -316,19 +316,13 @@ class HomeContent extends StatelessWidget {
                 title: 'Classes',
                 subtitle: '0 active courses',
                 icon: FontAwesomeIcons.bookOpen,
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                  colors: [Colors.grey[400]!, Colors.grey[600]!],
                 ),
-                onTap: () {
-                  ComingSoonDialog.show(
-                    context,
-                    title: 'Classes',
-                    icon: FontAwesomeIcons.bookOpen,
-                    iconColor: const Color(0xFF6366F1),
-                  );
-                },
+                isDisabled: true,
+                onTap: () {},
               ),
             ),
             const SizedBox(width: 12),
@@ -338,11 +332,12 @@ class HomeContent extends StatelessWidget {
                 title: 'Schedule',
                 subtitle: 'View timetable',
                 icon: FontAwesomeIcons.calendar,
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF06B6D4), Color(0xFF0EA5E9)],
+                  colors: [Colors.grey[400]!, Colors.grey[600]!],
                 ),
+                isDisabled: true,
                 onTap: () {
                   ComingSoonDialog.show(
                     context,
@@ -364,11 +359,12 @@ class HomeContent extends StatelessWidget {
                 title: 'Grades',
                 subtitle: 'Check results',
                 icon: FontAwesomeIcons.chartLine,
-                gradient: const LinearGradient(
+                gradient:LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
+                  colors: [Colors.grey[400]!, Colors.grey[600]!],
                 ),
+                isDisabled: true,
                 onTap: () {
                   ComingSoonDialog.show(
                     context,
@@ -383,7 +379,7 @@ class HomeContent extends StatelessWidget {
             Expanded(
               child: _buildQuickActionCard(
                 context: context,
-                title: 'CPU QUEUE',
+                title: 'CQueue',
                 subtitle: 'Check Queue Number',
                 icon: FontAwesomeIcons.listOl,
                 gradient: const LinearGradient(
@@ -417,50 +413,54 @@ class HomeContent extends StatelessWidget {
     required IconData icon,
     required Gradient gradient,
     required VoidCallback onTap,
+    bool isDisabled = false,
   }) {
     return InkWell(
-      onTap: onTap,
+      onTap: isDisabled ? null : onTap,
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(10),
+      child: Opacity(
+        opacity: isDisabled ? 0.7 : 1.0,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
               ),
-              child: FaIcon(icon, size: 24, color: neutralWhite),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: neutralWhite,
-                fontWeight: FontWeight.w700,
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: FaIcon(icon, size: 24, color: neutralWhite),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.white.withOpacity(0.85),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: neutralWhite,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.white.withOpacity(0.85),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
