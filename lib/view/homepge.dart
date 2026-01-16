@@ -359,7 +359,7 @@ class HomeContent extends StatelessWidget {
                 title: 'Grades',
                 subtitle: 'Check results',
                 icon: FontAwesomeIcons.chartLine,
-                gradient:LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [Colors.grey[400]!, Colors.grey[600]!],
@@ -509,10 +509,11 @@ class HomeContent extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 60,
-            height: 60,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
               color: neutralWhite,
               borderRadius: BorderRadius.circular(14),
@@ -527,22 +528,24 @@ class HomeContent extends StatelessWidget {
             child: Center(
               child: FaIcon(
                 service.icon,
-                size: 26,
+                size: 24,
                 color: service.iconColor ?? primaryColor,
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            service.title,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: textDark,
-              fontSize: 11,
+          const SizedBox(height: 6),
+          Flexible(
+            child: Text(
+              service.title,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: textDark,
+                fontSize: 11,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

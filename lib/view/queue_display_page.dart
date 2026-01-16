@@ -80,7 +80,9 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Ticket $ticketNumber saved. You\'ll be notified when it\'s your turn!'),
+          content: Text(
+            'Ticket $ticketNumber saved. You\'ll be notified when it\'s your turn!',
+          ),
           backgroundColor: primaryColor,
         ),
       );
@@ -95,6 +97,26 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
       _lastNotifiedStatus = null;
       _lastNotifiedPosition = null;
     });
+  }
+
+  // Test notification method
+  Future<void> _sendTestNotification() async {
+    await NotificationService().showNowServingNotification(
+      ticketNumber: 'TEST-001',
+      windowName: 'Counter 1',
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Test notification sent! Put app in background to see it.',
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   // Handle notifications based on real-time ticket info
@@ -123,7 +145,9 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
         NotificationService().showNextInLineNotification(
           ticketNumber: ticket.ticketNumber,
         );
-      } else if (position > 1 && position <= 3 && _lastNotifiedPosition != position) {
+      } else if (position > 1 &&
+          position <= 3 &&
+          _lastNotifiedPosition != position) {
         _lastNotifiedPosition = position;
         NotificationService().showPositionUpdateNotification(
           ticketNumber: ticket.ticketNumber,
@@ -223,12 +247,30 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
                   ),
                   elevation: 0,
                 ),
-                child: const FaIcon(
-                  FontAwesomeIcons.floppyDisk,
-                  size: 16,
-                ),
+                child: const FaIcon(FontAwesomeIcons.floppyDisk, size: 16),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          // Test notification button
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _sendTestNotification,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: primaryColor,
+                side: const BorderSide(color: primaryColor),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              icon: const FaIcon(FontAwesomeIcons.bell, size: 14),
+              label: const Text(
+                'Test Alarm Notification',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
           ),
         ],
       ),
@@ -252,7 +294,9 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: (isServing ? primaryColor : secondaryColor).withValues(alpha: 0.3),
+            color: (isServing ? primaryColor : secondaryColor).withValues(
+              alpha: 0.3,
+            ),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -369,6 +413,14 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
             ),
           ] else if (!isServing && position != null) ...[
             const SizedBox(height: 12),
+            Text(
+              'Your position in line: $position',
+              style: TextStyle(
+                color: textDark.withValues(alpha: 0.8),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ],
       ),
@@ -407,10 +459,7 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
                 const SizedBox(height: 4),
                 Text(
                   'Ticket $_savedTicketNumber may have been completed',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: textGray,
-                  ),
+                  style: TextStyle(fontSize: 12, color: textGray),
                 ),
               ],
             ),
@@ -459,8 +508,10 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
           if (_savedTicketNumber != null)
             Consumer(
               builder: (context, ref, child) {
-                final info = ref.watch(myTrackedTicketProvider(_savedTicketNumber!));
-                
+                final info = ref.watch(
+                  myTrackedTicketProvider(_savedTicketNumber!),
+                );
+
                 // Trigger notifications here based on state changes
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   _handleNotifications(info);
@@ -481,7 +532,10 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
               builder: (context, ref, child) {
                 String? deptId;
                 if (_savedTicketNumber != null) {
-                  deptId = ref.watch(myTrackedTicketProvider(_savedTicketNumber!)).ticket?.departmentId;
+                  deptId = ref
+                      .watch(myTrackedTicketProvider(_savedTicketNumber!))
+                      .ticket
+                      ?.departmentId;
                 }
                 return _buildQueueDisplay(context, ref, deptId);
               },
@@ -497,10 +551,12 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
     WidgetRef ref,
     String? departmentId,
   ) {
-    final servingTicketsAsync =
-        ref.watch(servingTicketsStreamProvider(departmentId));
-    final waitingTicketsAsync =
-        ref.watch(waitingTicketsStreamProvider(departmentId));
+    final servingTicketsAsync = ref.watch(
+      servingTicketsStreamProvider(departmentId),
+    );
+    final waitingTicketsAsync = ref.watch(
+      waitingTicketsStreamProvider(departmentId),
+    );
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -517,9 +573,9 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
             Text(
               'Now Serving',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: textDark,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: textDark,
+              ),
             ),
             const SizedBox(height: 12),
             servingTicketsAsync.when(
@@ -536,9 +592,9 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
             Text(
               'Next in Line',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: textDark,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: textDark,
+              ),
             ),
             const SizedBox(height: 12),
             waitingTicketsAsync.when(
@@ -619,17 +675,15 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
           ),
           // Data Rows
           ...sortedTickets.map((ticket) {
-            final isLast = sortedTickets.indexOf(ticket) == sortedTickets.length - 1;
+            final isLast =
+                sortedTickets.indexOf(ticket) == sortedTickets.length - 1;
             return Container(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
               decoration: BoxDecoration(
                 border: isLast
                     ? null
                     : Border(
-                        bottom: BorderSide(
-                          color: backgroundGray,
-                          width: 1,
-                        ),
+                        bottom: BorderSide(color: backgroundGray, width: 1),
                       ),
               ),
               child: Row(
@@ -666,7 +720,7 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
   }
 
   Widget _buildWaitingTickets(BuildContext context, List tickets) {
-    // Show only the next 10 tickets
+    // Show only the next 5 tickets
     final displayTickets = tickets.take(5).toList();
 
     return Container(
@@ -694,7 +748,10 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
         itemBuilder: (context, index) {
           final ticket = displayTickets[index];
           return ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 8,
+            ),
             leading: CircleAvatar(
               backgroundColor: primaryColor.withValues(alpha: 0.1),
               child: Text(
@@ -714,10 +771,14 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
                 color: textDark,
               ),
             ),
-            subtitle: ticket.studentName != null 
-              ? Text(ticket.studentName!, style: const TextStyle(color: textGray, fontSize: 13)) 
-              : null,
-            trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 16),
+            // subtitle: ticket.studentName != null
+            //  ? Text(ticket.studentName!, style: const TextStyle(color: textGray, fontSize: 13))
+            //  : null,
+            trailing: const Icon(
+              Icons.chevron_right,
+              color: Colors.grey,
+              size: 16,
+            ),
           );
         },
       ),
@@ -740,13 +801,7 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
               color: textGray.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
-            Text(
-              message,
-              style: TextStyle(
-                color: textGray,
-                fontSize: 16,
-              ),
-            ),
+            Text(message, style: TextStyle(color: textGray, fontSize: 16)),
           ],
         ),
       ),
@@ -771,18 +826,12 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
             const SizedBox(height: 16),
             Text(
               'Error loading data',
-              style: TextStyle(
-                color: textGray,
-                fontSize: 16,
-              ),
+              style: TextStyle(color: textGray, fontSize: 16),
             ),
             const SizedBox(height: 8),
             Text(
               error,
-              style: TextStyle(
-                color: textGray,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: textGray, fontSize: 12),
               textAlign: TextAlign.center,
             ),
           ],
@@ -809,16 +858,23 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
               ),
             ),
           ),
-          ...List.generate(2, (index) => Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(child: Container(height: 20, color: Colors.grey[200])),
-                const SizedBox(width: 20),
-                Expanded(child: Container(height: 20, color: Colors.grey[200])),
-              ],
+          ...List.generate(
+            2,
+            (index) => Container(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(height: 20, color: Colors.grey[200]),
+                  ),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: Container(height: 20, color: Colors.grey[200]),
+                  ),
+                ],
+              ),
             ),
-          )),
+          ),
         ],
       ),
     );
@@ -834,7 +890,8 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: 5,
-        separatorBuilder: (context, index) => Divider(color: backgroundGray, height: 1),
+        separatorBuilder: (context, index) =>
+            Divider(color: backgroundGray, height: 1),
         itemBuilder: (context, index) => ListTile(
           leading: CircleAvatar(backgroundColor: Colors.grey[200]),
           title: Container(height: 16, width: 80, color: Colors.grey[200]),
