@@ -28,7 +28,7 @@ class NotificationService {
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
-      requestCriticalPermission: true,
+      requestCriticalPermission: false, // Requires Apple entitlement
     );
 
     const initSettings = InitializationSettings(
@@ -70,15 +70,20 @@ class NotificationService {
             IOSFlutterLocalNotificationsPlugin
           >();
 
-      await iosPlugin?.requestPermissions(
+      final granted = await iosPlugin?.requestPermissions(
         alert: true,
         badge: true,
         sound: true,
-        critical: true,
+        critical: false, // Critical requires special Apple entitlement
       );
+
+      debugPrint('iOS notification permissions granted: $granted');
     }
 
     _isInitialized = true;
+    debugPrint(
+      'Notification service initialized for ${Platform.isIOS ? "iOS" : "Android"}',
+    );
   }
 
   Future<void> showNextInLineNotification({
@@ -107,6 +112,7 @@ class NotificationService {
       presentBadge: true,
       presentSound: true,
       interruptionLevel: InterruptionLevel.timeSensitive,
+      sound: 'default',
     );
 
     await _notifications.show(
@@ -154,8 +160,8 @@ class NotificationService {
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
-      // Critical alerts bypass Do Not Disturb and silent mode
-      interruptionLevel: InterruptionLevel.critical,
+      // Use active instead of critical (critical requires Apple entitlement)
+      interruptionLevel: InterruptionLevel.timeSensitive,
       sound: 'default',
     );
 
@@ -165,6 +171,10 @@ class NotificationService {
       'Ticket $ticketNumber - Please proceed to $windowName NOW!',
       NotificationDetails(android: androidDetails, iOS: iosDetails),
       payload: 'now_serving:$ticketNumber',
+    );
+
+    debugPrint(
+      'Now serving notification sent for $ticketNumber on ${Platform.isIOS ? "iOS" : "Android"}',
     );
   }
 
@@ -190,6 +200,7 @@ class NotificationService {
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
+      sound: 'default',
       presentSound: true,
     );
 
@@ -218,5 +229,35 @@ class NotificationService {
   // Dismiss the ongoing "Now Serving" alarm notification
   Future<void> dismissNowServingAlarm() async {
     await _notifications.cancel(2); // ID 2 is for "Now Serving"
+  }
+
+  // Simple test notification for iOS debugging
+  Future<void> showTestNotification() async {
+    const androidDetails = AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      channelDescription: _channelDesc,
+      importance: Importance.max,
+      priority: Priority.max,
+      icon: _notificationIcon,
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+      interruptionLevel: InterruptionLevel.active,
+    );
+
+    await _notifications.show(
+      999,
+      'Test Notification',
+      'If you see this, notifications are working!',
+      const NotificationDetails(android: androidDetails, iOS: iosDetails),
+    );
+
+    debugPrint(
+      'Test notification sent on ${Platform.isIOS ? "iOS" : "Android"}',
+    );
   }
 }

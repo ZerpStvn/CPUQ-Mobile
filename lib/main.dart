@@ -36,11 +36,31 @@ class MyApp extends ConsumerStatefulWidget {
   ConsumerState<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends ConsumerState<MyApp> {
+class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initSavedTicket();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // When app returns to foreground, invalidate providers to reconnect
+    if (state == AppLifecycleState.resumed) {
+      // Invalidate all stream providers to force reconnection
+      ref.invalidate(servingTicketsStreamProvider);
+      ref.invalidate(waitingTicketsStreamProvider);
+      ref.invalidate(departmentsStreamProvider);
+    }
   }
 
   Future<void> _initSavedTicket() async {
