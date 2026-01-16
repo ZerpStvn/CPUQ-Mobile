@@ -6,21 +6,28 @@ class QueueRepository {
   final _supabase = SupabaseService.client;
 
   // Stream serving tickets for a specific department or all departments
-  Stream<List<QueueTicket>> streamServingTickets({String? departmentId}) async* {
+  Stream<List<QueueTicket>> streamServingTickets({
+    String? departmentId,
+  }) async* {
     // We stream tickets with a broader filter and sort descending by called_at
     // Using descending here to keep the most recently called tickets at the top
-    await for (final data in _supabase
-        .from('queue_tickets')
-        .stream(primaryKey: ['id'])
-        .order('called_at', ascending: false)) {
+    await for (final data
+        in _supabase
+            .from('queue_tickets')
+            .stream(primaryKey: ['id'])
+            .order('called_at', ascending: false)) {
       try {
         // Filter locally for 'serving' status to ensure real-time removal
         // when status transitions to 'completed' or 'waiting'
-        var servingData = data.where((json) => json['status'] == 'serving').toList();
+        var servingData = data
+            .where((json) => json['status'] == 'serving')
+            .toList();
 
         // Further filter by department if departmentId is provided
         if (departmentId != null) {
-          servingData = servingData.where((json) => json['department_id'] == departmentId).toList();
+          servingData = servingData
+              .where((json) => json['department_id'] == departmentId)
+              .toList();
         }
 
         var tickets = <QueueTicket>[];
@@ -58,16 +65,31 @@ class QueueRepository {
   }
 
   // Stream waiting tickets for a specific department or all departments
-  Stream<List<QueueTicket>> streamWaitingTickets({String? departmentId}) async* {
-    await for (final data in _supabase
-        .from('queue_tickets')
-        .stream(primaryKey: ['id'])
-        .eq('status', 'waiting')
-        .order('created_at', ascending: true)) {
+  Stream<List<QueueTicket>> streamWaitingTickets({
+    String? departmentId,
+  }) async* {
+    await for (final data
+        in _supabase
+            .from('queue_tickets')
+            .stream(primaryKey: ['id'])
+            .order('created_at', ascending: true)) {
       try {
+        // Filter locally for 'waiting' status to ensure real-time removal
+        // when status transitions to 'serving' or 'completed'
+        var waitingData = data
+            .where((json) => json['status'] == 'waiting')
+            .toList();
+
+        // Further filter by department if departmentId is provided
+        if (departmentId != null) {
+          waitingData = waitingData
+              .where((json) => json['department_id'] == departmentId)
+              .toList();
+        }
+
         var tickets = <QueueTicket>[];
 
-        for (var json in data) {
+        for (var json in waitingData) {
           try {
             // Fetch window name if window_id exists (usually null for waiting)
             if (json['window_id'] != null) {
@@ -89,11 +111,6 @@ class QueueRepository {
           }
         }
 
-        // Filter by department if departmentId is provided
-        if (departmentId != null) {
-          tickets = tickets.where((ticket) => ticket.departmentId == departmentId).toList();
-        }
-
         yield tickets;
       } catch (e) {
         print('Error in streamWaitingTickets: $e');
@@ -109,9 +126,7 @@ class QueueRepository {
         .eq('is_active', true)
         .order('name');
 
-    return (response as List)
-        .map((json) => Department.fromJson(json))
-        .toList();
+    return (response as List).map((json) => Department.fromJson(json)).toList();
   }
 
   // Stream all departments
@@ -122,7 +137,7 @@ class QueueRepository {
         .eq('is_active', true)
         .order('name')
         .map((data) {
-      return data.map((json) => Department.fromJson(json)).toList();
-    });
+          return data.map((json) => Department.fromJson(json)).toList();
+        });
   }
 }

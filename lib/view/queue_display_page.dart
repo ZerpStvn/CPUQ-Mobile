@@ -99,24 +99,165 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
     });
   }
 
-  // Test notification method
-  Future<void> _sendTestNotification() async {
-    await NotificationService().showNowServingNotification(
-      ticketNumber: 'TEST-001',
-      windowName: 'Counter 1',
-    );
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Test notification sent! Put app in background to see it.',
+  // Show full-screen modal when it's user's turn
+  void _showNowServingModal(String ticketNumber, String windowName) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog.fullscreen(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [primaryColor, Color(0xFF05236D)],
+            ),
           ),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
+          child: SafeArea(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(),
+                // Pulsing icon animation
+                TweenAnimationBuilder(
+                  tween: Tween<double>(begin: 0.8, end: 1.2),
+                  duration: const Duration(milliseconds: 800),
+                  curve: Curves.easeInOut,
+                  builder: (context, double scale, child) {
+                    return Transform.scale(
+                      scale: scale,
+                      child: Container(
+                        padding: const EdgeInsets.all(32),
+                        decoration: BoxDecoration(
+                          color: secondaryColor,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: secondaryColor.withValues(alpha: 0.5),
+                              blurRadius: 40,
+                              spreadRadius: 10,
+                            ),
+                          ],
+                        ),
+                        child: const FaIcon(
+                          FontAwesomeIcons.bell,
+                          size: 64,
+                          color: primaryColor,
+                        ),
+                      ),
+                    );
+                  },
+                  onEnd: () {
+                    // Loop animation
+                    if (mounted) {
+                      setState(() {});
+                    }
+                  },
+                ),
+                const SizedBox(height: 48),
+                const Text(
+                  'NOW SERVING!',
+                  style: TextStyle(
+                    fontSize: 42,
+                    fontWeight: FontWeight.w900,
+                    color: secondaryColor,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Your Ticket',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                    color: neutralWhite,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  ticketNumber,
+                  style: const TextStyle(
+                    fontSize: 72,
+                    fontWeight: FontWeight.w900,
+                    color: neutralWhite,
+                    letterSpacing: 4,
+                  ),
+                ),
+                const SizedBox(height: 48),
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: secondaryColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: secondaryColor, width: 2),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Please Proceed To',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: neutralWhite,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const FaIcon(
+                            FontAwesomeIcons.computer,
+                            color: secondaryColor,
+                            size: 32,
+                          ),
+                          const SizedBox(width: 16),
+                          Text(
+                            windowName,
+                            style: const TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.w900,
+                              color: secondaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: secondaryColor,
+                      foregroundColor: primaryColor,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 48,
+                        vertical: 20,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 8,
+                    ),
+                    child: const Text(
+                      'GOT IT!',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      );
-    }
+      ),
+    );
   }
 
   // Handle notifications based on real-time ticket info
@@ -130,6 +271,14 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
     if (ticket.status == 'serving') {
       if (_lastNotifiedStatus != 'serving') {
         _lastNotifiedStatus = 'serving';
+
+        // Show full-screen modal
+        _showNowServingModal(
+          ticket.ticketNumber,
+          ticket.windowName ?? 'Counter',
+        );
+
+        // Also send notification for background
         NotificationService().showNowServingNotification(
           ticketNumber: ticket.ticketNumber,
           windowName: ticket.windowName ?? 'Counter',
@@ -251,27 +400,6 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          // Test notification button
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _sendTestNotification,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: primaryColor,
-                side: const BorderSide(color: primaryColor),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              icon: const FaIcon(FontAwesomeIcons.bell, size: 14),
-              label: const Text(
-                'Test Alarm Notification',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -279,6 +407,7 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
 
   Widget _buildMyTicketCard(QueueTicket ticket, int? position) {
     final isServing = ticket.status == 'serving';
+    final isAlmostNext = !isServing && position != null && position <= 3;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -289,16 +418,25 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
           end: Alignment.bottomRight,
           colors: isServing
               ? [primaryColor, const Color(0xFF05236D)]
+              : isAlmostNext
+              ? [
+                  const Color(0xFFFFB74D), // Orange
+                  const Color(0xFFFF9800), // Deeper orange
+                ]
               : [secondaryColor, const Color(0xFFFFD54F)],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: (isServing ? primaryColor : secondaryColor).withValues(
-              alpha: 0.3,
-            ),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color:
+                (isServing
+                        ? primaryColor
+                        : isAlmostNext
+                        ? Colors.orange
+                        : secondaryColor)
+                    .withValues(alpha: 0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -344,13 +482,23 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
                     decoration: BoxDecoration(
                       color: isServing
                           ? secondaryColor
+                          : isAlmostNext
+                          ? neutralWhite
                           : neutralWhite.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      isServing ? 'NOW SERVING' : 'WAITING',
+                      isServing
+                          ? 'NOW SERVING'
+                          : isAlmostNext
+                          ? 'PLEASE PREPARE'
+                          : 'WAITING',
                       style: TextStyle(
-                        color: isServing ? textDark : primaryColor,
+                        color: isServing
+                            ? textDark
+                            : isAlmostNext
+                            ? const Color.fromARGB(255, 14, 9, 5)
+                            : primaryColor,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.2,
@@ -413,14 +561,6 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
             ),
           ] else if (!isServing && position != null) ...[
             const SizedBox(height: 12),
-            Text(
-              'Your position in line: $position',
-              style: TextStyle(
-                color: textDark.withValues(alpha: 0.8),
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
           ],
         ],
       ),
@@ -586,23 +726,58 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
               error: (error, stack) => _buildErrorState(error.toString()),
             ),
 
-            const SizedBox(height: 32),
-
-            // Waiting Queue Section
-            Text(
-              'Next in Line',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: textDark,
-              ),
-            ),
-            const SizedBox(height: 12),
+            // Waiting Queue Section - Only show if there are tickets
             waitingTicketsAsync.when(
-              data: (tickets) => tickets.isEmpty
-                  ? _buildEmptyState('No tickets waiting')
-                  : _buildWaitingTickets(context, tickets),
-              loading: () => _buildWaitingSkeletonLoader(),
-              error: (error, stack) => _buildErrorState(error.toString()),
+              data: (tickets) {
+                if (tickets.isEmpty) {
+                  return const SizedBox.shrink(); // Hide entire section when empty
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 32),
+                    Text(
+                      'Next in Line',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildWaitingTickets(context, tickets),
+                  ],
+                );
+              },
+              loading: () => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 32),
+                  Text(
+                    'Next in Line',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildWaitingSkeletonLoader(),
+                ],
+              ),
+              error: (error, stack) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 32),
+                  Text(
+                    'Next in Line',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildErrorState(error.toString()),
+                ],
+              ),
             ),
           ],
         ),

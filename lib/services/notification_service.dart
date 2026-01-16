@@ -195,7 +195,7 @@ class NotificationService {
 
     String message = position == 1
         ? 'You\'re next in line! Get ready.'
-        : 'Getting closer! $position more before you.';
+        : 'Please Proceed Near the Counter';
 
     await _notifications.show(
       3,
