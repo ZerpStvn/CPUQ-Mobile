@@ -994,19 +994,23 @@ class _QueueDisplayPageState extends ConsumerState<QueueDisplayPage> {
         child: Column(
           children: [
             const FaIcon(
-              FontAwesomeIcons.triangleExclamation,
+              FontAwesomeIcons.cloudArrowDown,
               size: 48,
-              color: Colors.red,
+              color: Colors.orange,
             ),
             const SizedBox(height: 16),
-            Text(
-              'Error loading data',
-              style: TextStyle(color: textGray, fontSize: 16),
+            const Text(
+              'Unable to load queue',
+              style: TextStyle(
+                color: textDark,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
-              error,
-              style: TextStyle(color: textGray, fontSize: 12),
+              'Please check your internet connection\nand pull down to refresh',
+              style: TextStyle(color: textGray, fontSize: 14),
               textAlign: TextAlign.center,
             ),
           ],
